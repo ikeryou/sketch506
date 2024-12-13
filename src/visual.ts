@@ -20,7 +20,7 @@ export class Visual extends Canvas {
     this._con = new Object3D()
     this.mainScene.add(this._con)
 
-    const num = 20
+    const num = 25
     for(let i = 0; i < num; i++) {
       const s = Util.random(0.25, 1.75)
       const size = new Vector2(100 * s, 18 * s)
@@ -113,7 +113,10 @@ export class ToggleMushi extends MyObject3D {
   private _line: Mesh;
   public get line():Mesh { return this._line }
 
+  private _lineShadow: Mesh;
+
   private _edge:Array<Mesh> = [];
+  private _edgeShadow:Array<Mesh> = [];
   private _dot: Mesh;
   private _dotPosRate: Val = new Val(0);
   private _btnColor: Color = new Color(0xffffff)
@@ -124,8 +127,7 @@ export class ToggleMushi extends MyObject3D {
   private _basePos: Vector3 = new Vector3()
   private _size: number = 18
   private _width: number = 100
-  private _vec: number = Util.hit(2) ? 1 : -1
-  private _t: number = Util.random(0.5, 2)
+  private _t: number = Util.random(0.5, 1)
   private _it: number = Util.random(0, 0.5)
 
   private _isActive: boolean = false
@@ -156,11 +158,25 @@ export class ToggleMushi extends MyObject3D {
     this._lineMat = new MeshBasicMaterial({
       depthTest: false,
       color: this._activeBgColor,
+      transparent: true,
     })
 
     const baseOrder = this._lineId * 2
 
     for(let i = 0; i < 2; i++) {
+      const edgeShadow = new Mesh(
+        new CircleGeometry(0.5, 64),
+        new MeshBasicMaterial({
+          depthTest: false,
+          color: 0x000000,
+          transparent: true,
+          opacity: 0.25,
+        })
+      )
+      this.add(edgeShadow)
+      this._edgeShadow.push(edgeShadow)
+      edgeShadow.renderOrder = baseOrder - 1
+
       const edge = new Mesh(
         new CircleGeometry(0.5, 64),
         this._lineMat
@@ -174,11 +190,24 @@ export class ToggleMushi extends MyObject3D {
       new CircleGeometry(0.5, 64),
       new MeshBasicMaterial({
         depthTest: false,
+        transparent: true,
         color: this._btnColor,
       })
     );
     this.add(this._dot);
     this._dot.renderOrder = baseOrder + 1;
+
+    this._lineShadow = new Mesh(
+      this._makeLineGeo(),
+      new MeshBasicMaterial({
+        transparent: true,
+        depthTest: false,
+        color: 0x000000,
+        opacity: 0.25,
+      })
+    );
+    this.add(this._lineShadow);
+    this._lineShadow.renderOrder = baseOrder;
 
     this._line = new Mesh(
       this._makeLineGeo(),
@@ -186,6 +215,7 @@ export class ToggleMushi extends MyObject3D {
     );
     this.add(this._line);
     this._line.renderOrder = baseOrder;
+
     
 
     (this._line as any).myCurrent = this
@@ -204,18 +234,24 @@ export class ToggleMushi extends MyObject3D {
       val:[0, 1]
     }, t, d, ease)
 
-    const x = this._basePos.x - this._width * this._vec
+    if(this._basePos.x < Func.sw() * -0.5 - this._width) {
+      this._basePos.x = Func.sw() * 0.5 + this._width
+    } else if(this._basePos.x > Func.sw() * 0.5 + this._width) {
+      this._basePos.x = Func.sw() * -0.5 - this._width
+    }
+    
+
+    const x = this._basePos.x - this._width * (this._isActive ? -1 : 1)
+
+    
+
     Tween.a(this._basePos, {
       x: x,
     }, t, d, ease, null, null, () => {
       this._move(this._it)
     })
 
-    if(x < Func.sw() * -0.5) {
-      this._vec = -1
-    } else if(x > Func.sw() * 0.5) {
-      this._vec = 1
-    }
+    
   }
 
 
@@ -240,6 +276,10 @@ export class ToggleMushi extends MyObject3D {
 
     this._line.geometry.dispose()
     this._line.geometry = this._makeLineGeo()
+    this._lineShadow.geometry.dispose()
+    this._lineShadow.geometry = this._line.geometry
+
+    this._lineShadow.position.y = this._line.position.y - 2
   }
 
   // ---------------------------------
@@ -258,8 +298,6 @@ export class ToggleMushi extends MyObject3D {
     arr.push(new Vector3(this._basePos.x - width * 0.5, this._basePos.y, 0))
     arr.push(new Vector3(this._basePos.x, this._basePos.y - Util.map(Math.sin(Util.radian(this._moveRate.val * 180)), 0, this._width * -0.25, 0, 1), 0))
     arr.push(new Vector3(this._basePos.x + width * 0.5, this._basePos.y, 0))
-
-    
 
     const width2 = this._size;
 
@@ -281,6 +319,15 @@ export class ToggleMushi extends MyObject3D {
 
     const dotPos = sampleClosedSpline.getPointAt(this._dotPosRate.val);
     this._dot.position.copy(dotPos);
+
+    this._edgeShadow[0].scale.set(edgeSize, edgeSize, 1)
+    this._edgeShadow[1].scale.set(edgeSize, edgeSize, 1)
+    
+    this._edgeShadow[0].position.copy(this._edge[0].position)
+    this._edgeShadow[1].position.copy(this._edge[1].position)
+
+    this._edgeShadow[0].position.y -= 2
+    this._edgeShadow[1].position.y -= 2
 
     return tube;
   }
